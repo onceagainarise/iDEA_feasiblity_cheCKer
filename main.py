@@ -9,16 +9,10 @@ from typing import Dict, Any, List, Optional, TypedDict
 from datetime import datetime
 import json
 from dataclasses import dataclass, asdict
-
-# Import LangGraph components
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import AnyMessage, add_messages
 from langgraph.checkpoint.memory import MemorySaver
-
-# Import Groq for LLM
 from groq import AsyncGroq
-
-# Import our custom modules
 from config import settings
 from mcp_integrationsp import RealMCPTools
 
@@ -44,7 +38,7 @@ class FeasibilityAnalysis:
     incremental_steps: List[str]
     future_outlook: str
     timeline_estimate: str
-    conclusion: str  # "not feasible", "partially feasible", "feasible now", "feasible in future"
+    conclusion: str 
     confidence_score: float
 
 class AgentState(TypedDict):
@@ -69,23 +63,20 @@ class InnovationFeasibilityAgent:
     def _build_graph(self) -> StateGraph:
         """Build the LangGraph workflow"""
         
-        # Define the workflow graph
+      
         workflow = StateGraph(AgentState)
-        
-        # Add nodes
+   
         workflow.add_node("parse_idea", self.parse_idea)
         workflow.add_node("conduct_research", self.conduct_research)
         workflow.add_node("analyze_feasibility", self.analyze_feasibility)
         workflow.add_node("reflect_and_iterate", self.reflect_and_iterate)
         workflow.add_node("generate_final_report", self.generate_final_report)
         
-        # Define the workflow flow
         workflow.add_edge(START, "parse_idea")
         workflow.add_edge("parse_idea", "conduct_research")
         workflow.add_edge("conduct_research", "analyze_feasibility")
         workflow.add_edge("analyze_feasibility", "reflect_and_iterate")
-        
-        # Conditional edges based on iteration needs
+
         workflow.add_conditional_edges(
             "reflect_and_iterate",
             self._should_continue_research,
@@ -97,7 +88,7 @@ class InnovationFeasibilityAgent:
         
         workflow.add_edge("generate_final_report", END)
         
-        # Set up memory for conversation history
+
         memory = MemorySaver()
         return workflow.compile(checkpointer=memory)
     
@@ -136,10 +127,9 @@ class InnovationFeasibilityAgent:
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1
             )
-            
-            # Extract JSON from response
+
             content = response.choices[0].message.content
-            # Simple JSON extraction (in production, use more robust parsing)
+
             import re
             json_match = re.search(r'\{.*\}', content, re.DOTALL)
             if json_match:
@@ -167,8 +157,7 @@ class InnovationFeasibilityAgent:
         logger.info(f"Conducting research for: {state['research_query']}")
         
         query = state["research_query"]
-        
-        # Parallel research across multiple sources
+
         research_tasks = [
             self.mcp_tools.search_arxiv(query, max_results=15),
             self.mcp_tools.search_news(query, days=90),
@@ -211,8 +200,7 @@ class InnovationFeasibilityAgent:
         if not research:
             logger.warning("No research results available for analysis")
             return state
-        
-        # Prepare research context
+
         research_context = self._format_research_context(research)
         
         analysis_prompt = f"""
@@ -254,8 +242,7 @@ class InnovationFeasibilityAgent:
             )
             
             analysis_text = response.choices[0].message.content
-            
-            # Extract structured analysis (simplified parsing)
+
             analysis = self._parse_analysis_response(analysis_text)
             
             return {
@@ -309,8 +296,7 @@ class InnovationFeasibilityAgent:
             
             reflection = response.choices[0].message.content.strip()
             needs_more = reflection.startswith("NEED_MORE")
-            
-            # Update research query if more research needed
+
             new_query = state["research_query"]
             if needs_more and ":" in reflection:
                 new_query = reflection.split(":")[1].strip()
@@ -341,7 +327,7 @@ class InnovationFeasibilityAgent:
                 "final_report": "Analysis could not be completed due to insufficient data."
             }
         
-        # Generate structured final report
+
         report_template = f"""
 # Innovation Feasibility Analysis Report
 
@@ -390,7 +376,6 @@ class InnovationFeasibilityAgent:
             ])
             context_parts.append(f"RECENT PAPERS:\n{papers_text}")
         
-        # News developments
         if research.news:
             news_text = "\n".join([
                 f"- {n['title']} ({n['date']}) - {n['description'][:150]}..."
@@ -398,7 +383,7 @@ class InnovationFeasibilityAgent:
             ])
             context_parts.append(f"RECENT NEWS:\n{news_text}")
         
-        # Patents
+
         if research.patents:
             patent_text = "\n".join([
                 f"- {p['title']} by {p['inventor']} ({p['publication_date']})"
@@ -406,7 +391,6 @@ class InnovationFeasibilityAgent:
             ])
             context_parts.append(f"RELEVANT PATENTS:\n{patent_text}")
         
-        # GitHub projects
         if research.github_projects:
             github_text = "\n".join([
                 f"- {g['name']} ({g['stars']} stars) - {g['description'][:100]}..."
@@ -418,7 +402,7 @@ class InnovationFeasibilityAgent:
     
     def _parse_analysis_response(self, text: str) -> FeasibilityAnalysis:
         """Parse LLM response into structured analysis"""
-        # Simple parsing logic - in production, use more robust extraction
+
         sections = {
             'idea_summary': '',
             'current_status': '',
@@ -482,8 +466,7 @@ class InnovationFeasibilityAgent:
     async def process_idea(self, user_idea: str) -> str:
         """Main entry point to process an innovative idea"""
         logger.info(f"Starting feasibility analysis for: {user_idea[:100]}...")
-        
-        # Initial state
+
         initial_state = {
             "messages": [],
             "user_idea": user_idea,
@@ -495,7 +478,7 @@ class InnovationFeasibilityAgent:
             "final_report": None
         }
         
-        # Run the workflow
+
         config = {"configurable": {"thread_id": f"analysis_{datetime.now().timestamp()}"}}
         
         try:
@@ -508,7 +491,6 @@ class InnovationFeasibilityAgent:
         finally:
             await self.mcp_tools.close()
 
-# CLI Interface
 class FeasibilityAgentCLI:
     """Command-line interface for the agent"""
     
@@ -566,7 +548,6 @@ class FeasibilityAgentCLI:
             print(f"{i}. {example}")
         print()
 
-# Batch processing mode
 async def process_ideas_batch(ideas_file: str, output_file: str):
     """Process multiple ideas from a file"""
     agent = InnovationFeasibilityAgent()
@@ -586,7 +567,7 @@ async def process_ideas_batch(ideas_file: str, output_file: str):
                 'timestamp': datetime.now().isoformat()
             })
         
-        # Save results
+
         with open(output_file, 'w') as f:
             json.dump(results, f, indent=2)
         
@@ -597,33 +578,32 @@ async def process_ideas_batch(ideas_file: str, output_file: str):
     except Exception as e:
         print(f"❌ Batch processing failed: {e}")
 
-# Main execution
 async def main():
     """Main function"""
     import sys
     
     if len(sys.argv) > 2:
-        # Batch mode
+
         ideas_file = sys.argv[1]
         output_file = sys.argv[2]
         await process_ideas_batch(ideas_file, output_file)
     
     elif len(sys.argv) == 2:
-        # Single idea mode
+
         idea = sys.argv[1]
         agent = InnovationFeasibilityAgent()
         report = await agent.process_idea(idea)
         print(report)
     
     else:
-        # Interactive mode
+
         cli = FeasibilityAgentCLI()
         await cli.run_interactive()
 
 if __name__ == "__main__":
-    # Ensure we have required environment variables
+
     try:
-        settings.groq_api_key  # This will raise an error if not set
+        settings.groq_api_key  
         asyncio.run(main())
     except Exception as e:
         print(f"❌ Setup Error: {e}")
