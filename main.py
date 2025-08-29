@@ -16,7 +16,6 @@ from groq import AsyncGroq
 from config import settings
 from mcp_integrationsp import RealMCPTools
 
-# Setup logging
 logging.basicConfig(level=getattr(logging, settings.log_level))
 logger = logging.getLogger(__name__)
 
